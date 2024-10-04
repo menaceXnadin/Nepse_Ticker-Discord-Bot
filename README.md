@@ -4,7 +4,14 @@
 
 ## Features
 
-- **Real-Time Data:** Get live updates from the Nepal Stock Exchange.
+- Retrieves real-time NEPSE indices data.
+- Provides detailed information about specific stocks.
+- Allows users to check details of various sub-indices.
+- Offers market summary insights.
+- Enables users to set alerts for specific stock prices.
+- Displays all active alerts for users.
+- Removes alerts as needed.
+  
 - **Commands:**
   - `!index`: Retrieve the latest NEPSE indices data.
   - `!stonk <stock_symbol>`: Get detailed info about a specific stock listed on NEPSE.
