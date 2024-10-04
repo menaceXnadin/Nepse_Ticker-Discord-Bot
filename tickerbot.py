@@ -538,7 +538,7 @@ async def setalert(ctx, stock_name: str, target_price: float):
     user_id = ctx.author.id
     stock_name = stock_name.upper()
     if check_stock_exists(stock_name) is None:
-        await ctx.reply(f"😵‍💫Stock :{stock_name} doesn't exist or there may be a **Typo**")
+        await ctx.reply(f"😵‍💫Stock : {stock_name} doesn't exist or there may be a **Typo**")
         return 
     if user_id not in user_alerts:
         user_alerts[user_id] = {}
