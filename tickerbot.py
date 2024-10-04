@@ -1,6 +1,6 @@
 import discord
 import regex
-from discord.ext import commands
+from discord.ext import commands,tasks
 import requests
 import os
 from bs4 import BeautifulSoup
@@ -11,6 +11,8 @@ MY_BOT_TOKEN = str(os.getenv("DISCORD_BOT_TOK"))
 intents = discord.Intents.default()
 intents.message_content = True
 client = commands.Bot(command_prefix="!", intents=intents)
+
+user_alerts = {}  # dict style: user_alerts = {'user_id': {'stock_name': [target_price1, target_price2]}}
 
 response3 = requests.get("https://www.sharesansar.com/market-summary")
 soup3 = BeautifulSoup(response3.text, "lxml")
@@ -179,7 +181,15 @@ def get_stock_details(stock_name):
 
     soup = BeautifulSoup(response.text, "lxml")
     soup2 = BeautifulSoup(response2.text, "lxml")
+    
+    # Check if the response for the stock details page was successful
+    if response2.status_code != 200:
+        return None  # Stock not found
+
     all_rows = soup2.find_all("div", class_="row")
+    if len(all_rows) < 6:  # If there's not enough data
+        return None
+
     info_row = all_rows[5]
     second_row = info_row.find_all("div", class_="col-md-12")
     shareinfo = second_row[1]
@@ -228,11 +238,14 @@ def get_stock_details(stock_name):
             }
             return stock_details
 
-    return None
+    return None  # Return None if the stock was not found
+
 
 
 @client.event
 async def on_ready():
+    check_stock_alerts.start()  # Start the background task
+    print(f"Logged in as {client.user}")
     print("Our Bot is Ready to use")
     print("-----------------------")
 
@@ -301,76 +314,77 @@ async def stonk(ctx, *, stock_name: str):
     Embedcolor = discord.Color.default()
     ud_emoji = ""
     pt_prefix = ""
-    if stock_details:
-        company_name = extract_stock_name(stock_details["Company fullform"])
-        if stock_details:
-            try:
-                last_traded_price = float(
-                    stock_details["Last Traded Price"].replace(",", "")
-                )
-                prev_closing = float(stock_details["Prev.Closing"].replace(",", ""))
 
-                if last_traded_price > prev_closing:
-                    ud_emoji = "🔼"
-                    pt_prefix = "+"
-                    Embedcolor = discord.Color.green()
-                else:
-                    ud_emoji = "🔽"
-                    Embedcolor = discord.Color.red()
-            except (KeyError, ValueError) as e:
-                await ctx.reply(
-                    "Error processing stock data. Please ensure the stock name is correct."
-                )
-                return
+    # Check if stock details were found
+    if stock_details is None:
+        await ctx.reply(f"⚠️ Stock '{stock_name.upper()}' not found. Please ensure the stock name is correct.")
+        return
 
-        embed = discord.Embed(
-            title=f"Details of {stock_name.upper()}(*Click for more info*)",
-            description=f"**Company**:{company_name}\n**Sector**:{stock_details['Sector']}\n**Share Registrar**:{stock_details['Share Registrar']}\n *[Click here to view technical chart](https://nepsealpha.com/trading/chart?symbol={stock_details['Symbol']})*",
-            color=Embedcolor,
-            url=f"https://merolagani.com/CompanyDetail.aspx?symbol={stock_details['Symbol']}",
-        )
-        embed.add_field(
-            name=list(stock_details.keys())[0],
-            value=stock_details["Symbol"],
-            inline=True,
-        )
-        embed.add_field(
-            name=list(stock_details.keys())[1],
-            value=f"{stock_details['Last Traded Price']} {ud_emoji}",
-            inline=True,
-        )
-        embed.add_field(
-            name=list(stock_details.keys())[2],
-            value=f"{pt_prefix}{stock_details['Pt Change']}",
-            inline=True,
-        )
-        embed.add_field(
-            name=list(stock_details.keys())[4], value=stock_details["Open"], inline=True
-        )
-        embed.add_field(
-            name=list(stock_details.keys())[5], value=stock_details["High"], inline=True
-        )
-        embed.add_field(
-            name=list(stock_details.keys())[6], value=stock_details["Low"], inline=True
-        )
-        embed.add_field(
-            name=list(stock_details.keys())[3],
-            value=stock_details["% Change"],
-            inline=True,
-        )
-        embed.add_field(
-            name=list(stock_details.keys())[7],
-            value=stock_details["Volume"],
-            inline=True,
-        )
-        embed.add_field(
-            name=list(stock_details.keys())[8],
-            value=stock_details["Prev.Closing"],
-            inline=True,
-        )
-        embed.set_footer(text=f"Last updated:{stock_details['As of']}")
+    company_name = extract_stock_name(stock_details["Company fullform"])
+    try:
+        last_traded_price = float(stock_details["Last Traded Price"].replace(",", ""))
+        prev_closing = float(stock_details["Prev.Closing"].replace(",", ""))
 
-        await ctx.reply(embed=embed)
+        if last_traded_price > prev_closing:
+            ud_emoji = "🔼"
+            pt_prefix = "+"
+            Embedcolor = discord.Color.green()
+        else:
+            ud_emoji = "🔽"
+            Embedcolor = discord.Color.red()
+    except (KeyError, ValueError) as e:
+        await ctx.reply("Error processing stock data. Please ensure the stock name is correct.")
+        return
+
+    embed = discord.Embed(
+        title=f"Details of {stock_name.upper()}(*Click for more info*)",
+        description=f"**Company**:{company_name}\n**Sector**:{stock_details['Sector']}\n**Share Registrar**:{stock_details['Share Registrar']}\n *[Click here to view technical chart](https://nepsealpha.com/trading/chart?symbol={stock_details['Symbol']})*",
+        color=Embedcolor,
+        url=f"https://merolagani.com/CompanyDetail.aspx?symbol={stock_details['Symbol']}",
+    )
+    embed.add_field(
+        name=list(stock_details.keys())[0],
+        value=stock_details["Symbol"],
+        inline=True,
+    )
+    embed.add_field(
+        name=list(stock_details.keys())[1],
+        value=f"{stock_details['Last Traded Price']} {ud_emoji}",
+        inline=True,
+    )
+    embed.add_field(
+        name=list(stock_details.keys())[2],
+        value=f"{pt_prefix}{stock_details['Pt Change']}",
+        inline=True,
+    )
+    embed.add_field(
+        name=list(stock_details.keys())[4], value=stock_details["Open"], inline=True
+    )
+    embed.add_field(
+        name=list(stock_details.keys())[5], value=stock_details["High"], inline=True
+    )
+    embed.add_field(
+        name=list(stock_details.keys())[6], value=stock_details["Low"], inline=True
+    )
+    embed.add_field(
+        name=list(stock_details.keys())[3],
+        value=stock_details["% Change"],
+        inline=True,
+    )
+    embed.add_field(
+        name=list(stock_details.keys())[7],
+        value=stock_details["Volume"],
+        inline=True,
+    )
+    embed.add_field(
+        name=list(stock_details.keys())[8],
+        value=stock_details["Prev.Closing"],
+        inline=True,
+    )
+    embed.set_footer(text=f"Last updated:{stock_details['As of']}")
+
+    await ctx.reply(embed=embed)
+
 
 
 @client.command()
@@ -380,7 +394,7 @@ async def helpnepse(ctx):
     # !index command
     embed.add_field(
         name="1. !index",
-        value=(
+        value=(        
             "**Description:** Retrieves the latest NEPSE indices data.\n"
             "**Data Provided:** NEPSE Index, Sensitive Index, Float Index, Sensitive Float Index.\n"
             "**Usage:** Type `!index`."
@@ -431,9 +445,101 @@ async def helpnepse(ctx):
             "**Data Provided:** Total Turnovers, Total Traded Shares, Total Transactions, Total Scrips Traded, Total Market Cap, and Floated Market Cap.\n"
             "**Usage:** Type `!mktsum`."
         ),
-        inline=True
+        inline=False
+    )
+
+    # !setalert command
+    embed.add_field(
+        name="5. !setalert <stock_name> <target_price>",
+        value=(
+            "**Description:** Sets an alert for a specific stock when it reaches a target price.\n"
+            "`*The bot will send you a DM after your stock price reaches the target price.*`\n"
+            "**Usage:** Type `!setalert <stock_name> <target_price>` (e.g., `!setalert NFS 5000`)."
+        ),
+        inline=False
+    )
+
+    # !showalerts command
+    embed.add_field(
+        name="6. !showalerts",
+        value=(
+            "**Description:** Displays all active alerts for the user.\n"
+            "**Usage:** Type `!showalerts`."
+        ),
+        inline=False
+    )
+
+    # !removealert command
+    embed.add_field(
+        name="7. !removealert <stock_name>",
+        value=(
+            "**Description:** Removes an alert for a specific stock.\n"
+            "**Usage:** Type `!removealert <stock_name>` \n(e.g., `!removealert UNL`)."
+        ),
+        inline=False
     )
 
     await ctx.reply(embed=embed)
 
+def get_stock_price(stock_name):
+    response = requests.get(f"https://www.sharesansar.com/live-trading")
+    soup = BeautifulSoup(response.text, 'lxml')
+    df = soup.find('tbody')
+    stock_rows = df.find_all('tr')
+    for row in stock_rows:
+        row_data = row.find_all('td')  # All <td> in the current row
+        if row_data[1].text.strip().upper() == stock_name.upper():  # Use upper to match stock names
+            return float(row_data[2].text.strip().replace(',', ''))
+    return None
+
+@tasks.loop(seconds=30)
+async def check_stock_alerts():
+    for user_id, alerts in user_alerts.items():
+        # Collect stocks to remove after checking prices
+        stocks_to_remove = []
+        for stock_name, target_prices in alerts.items():
+            current_price = get_stock_price(stock_name)
+            if current_price is not None:
+                for target_price in target_prices[:]:  # Iterate over a copy of target_prices
+                    if current_price == target_price:  # Check for exact price match
+                        user = await client.fetch_user(user_id)
+                        await user.send(f"🔔 **ALERT!** {stock_name} has reached your target price of Rs. {target_price}. Current price: Rs. {current_price}.")
+                        target_prices.remove(target_price)  # Remove the alerted price
+
+                # Check if no target prices are left for this stock
+                if not target_prices:
+                    stocks_to_remove.append(stock_name)
+
+        # Remove stocks after the iteration is done
+        for stock_name in stocks_to_remove:
+            del alerts[stock_name]
+
+@client.command()
+async def setalert(ctx, stock_name: str, target_price: float):
+    user_id = ctx.author.id
+    if user_id not in user_alerts:
+        user_alerts[user_id] = {}
+    if stock_name not in user_alerts[user_id]:
+        user_alerts[user_id][stock_name] = []
+    user_alerts[user_id][stock_name].append(target_price)  # Append to the list of target prices
+    await ctx.reply(f"✅ Alert set for {stock_name.upper()} at Rs.{target_price}.")
+
+@client.command()
+async def showalerts(ctx):
+    user_id = ctx.author.id
+    if user_id in user_alerts and user_alerts[user_id]:
+        alert_list = "\n".join([f"{stock}: Rs. {', Rs. '.join(map(str, prices))}" for stock, prices in user_alerts[user_id].items()])
+        await ctx.reply(f"Your alerts:\n{alert_list}")
+    else:
+        await ctx.reply("You have no active alerts.")
+
+@client.command()
+async def removealert(ctx, stock_name: str):
+    user_id = ctx.author.id
+    stock_name = stock_name.upper()
+    if user_id in user_alerts and stock_name in user_alerts[user_id]:
+        del user_alerts[user_id][stock_name]
+        await ctx.reply(f"❌ Alert removed for {stock_name}.")
+    else:
+        await ctx.reply(f"No active alert found for {stock_name}.")
 client.run(MY_BOT_TOKEN)
