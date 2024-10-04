@@ -120,15 +120,20 @@ def get_sub_index_details(subindex_name):
                 "% change": tds[6].text,
                 "Turnover": tds[7].text,
             }
+        else:
+            return None
     return sub_index_details
 
 
 @client.command()
 async def subidx(ctx, *, subindex_name: str):
     sub_index_details = get_sub_index_details(subindex_name)
-    o = float(sub_index_details["Open"].replace(",", ""))
-    h = float(sub_index_details["High"].replace(",", ""))
-    c = float(sub_index_details["close"].replace(",", ""))
+    if sub_index_details==None:
+        await ctx.reply(f"The particular subindex:{subindex_name} doesn't exist or there might be a typo.🤔\nPlease use `!helpnepse` to see the correct format! 📜")
+        return
+    o = round(float(sub_index_details["Open"].replace(",", "")),2)
+    h = round(float(sub_index_details["High"].replace(",", "")),2)
+    c = round(float(sub_index_details["close"].replace(",", "")),2)
     if o > c or o > h or o > c:
         embedcolor = discord.Color.red()
     else:
@@ -174,8 +179,9 @@ async def subidx(ctx, *, subindex_name: str):
     embed.set_footer(text=f"As of: {last_mktsum}")
     await ctx.reply(embed=embed)
 
-
 def get_stock_details(stock_name):
+    # if stock_name.upper()=="NEPSE":
+    #     return None
     response = requests.get("https://www.sharesansar.com/live-trading")
     response2 = requests.get(f"https://www.sharesansar.com/company/{stock_name}")
 
@@ -310,6 +316,9 @@ async def mktsum(ctx):
 
 @client.command()
 async def stonk(ctx, *, stock_name: str):
+    if stock_name.upper() == "NEPSE":
+        await ctx.reply("📊 For details on NEPSE, use `!index` or use `!mktsum` to get the market summary. 📈")
+        return
     stock_details = get_stock_details(stock_name)
     Embedcolor = discord.Color.default()
     ud_emoji = ""
@@ -322,8 +331,8 @@ async def stonk(ctx, *, stock_name: str):
 
     company_name = extract_stock_name(stock_details["Company fullform"])
     try:
-        last_traded_price = float(stock_details["Last Traded Price"].replace(",", ""))
-        prev_closing = float(stock_details["Prev.Closing"].replace(",", ""))
+        last_traded_price = round(float(stock_details["Last Traded Price"].replace(",", "")),2)
+        prev_closing = round(float(stock_details["Prev.Closing"].replace(",", "")),2)
 
         if last_traded_price > prev_closing:
             ud_emoji = "🔼"
@@ -489,7 +498,7 @@ def get_stock_price(stock_name):
     for row in stock_rows:
         row_data = row.find_all('td')  # All <td> in the current row
         if row_data[1].text.strip().upper() == stock_name.upper():  # Use upper to match stock names
-            return float(row_data[2].text.strip().replace(',', ''))
+            return round(float(row_data[2].text.strip().replace(',', '')),2)
     return None
 
 @tasks.loop(seconds=30)
@@ -513,16 +522,30 @@ async def check_stock_alerts():
         # Remove stocks after the iteration is done
         for stock_name in stocks_to_remove:
             del alerts[stock_name]
-
+def check_stock_exists(stock_name):
+    response = requests.get(f"https://www.sharesansar.com/live-trading")
+    soup = BeautifulSoup(response.text, 'lxml')    
+    df = soup.find('tbody')
+    stock_rows = df.find_all('tr')  # List of all stock rows
+    for row in stock_rows:
+        row_data = row.find_all('td')  # All <td> in the current row
+        for td in row_data:
+            if td.text.strip() == stock_name.upper():
+                return True
+    return None
 @client.command()
 async def setalert(ctx, stock_name: str, target_price: float):
     user_id = ctx.author.id
+    stock_name = stock_name.upper()
+    if check_stock_exists(stock_name) is None:
+        await ctx.reply(f"😵‍💫Stock :{stock_name} doesn't exist or there may be a **Typo**")
+        return 
     if user_id not in user_alerts:
         user_alerts[user_id] = {}
     if stock_name not in user_alerts[user_id]:
         user_alerts[user_id][stock_name] = []
     user_alerts[user_id][stock_name].append(target_price)  # Append to the list of target prices
-    await ctx.reply(f"✅ Alert set for {stock_name.upper()} at Rs.{target_price}.")
+    await ctx.reply(f"✅ Alert set for {stock_name} at Rs.{target_price}.")
 
 @client.command()
 async def showalerts(ctx):
