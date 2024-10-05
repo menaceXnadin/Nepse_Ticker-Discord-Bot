@@ -13,17 +13,18 @@
 - Removes alerts as needed.
   
 - **Commands:**
-  - `!index`: Retrieve the latest NEPSE indices data.
+  - `!nepse`: Retrieve the latest NEPSE indices data.
   - `!stonk <stock_symbol>`: Get detailed info about a specific stock listed on NEPSE.
   - `!subidx <subindex_name>`: Get details of a specific sub-index.
   - `!mktsum`: Provides a market summary of NEPSE's overall performance.
   - `!setalert <stock_name> <target_price>`: Set an alert for a specific stock when it reaches a target price. The bot will send you a DM after your stock price reaches the target price.
   - `!showalerts`: Displays all active alerts for the user.
   - `!removealert <stock_name>`: Removes an alert for a specific stock.
+  - `!topgl`: Shows the top 10 gainers/losers
 
 ## Data Source
 
-The data is sourced from [Sharesansar](https://www.sharesansar.com/), a well-regarded platform for real-time stock market information in Nepal. The bot accesses stock prices, indices, and other market information available on their website, making it a valuable resource for anyone interested in the Nepal Stock Exchange.
+The data is sourced from [Sharesansar](https://www.sharesansar.com/) and [Mero Lagani](https://www.merolagani.com), two well-regarded platforms that provides real-time stock market information in Nepal. The bot accesses stock prices, indices, and other market information available on their website, making it a valuable resource for anyone interested in the Nepal Stock Exchange.
 
 ## Prerequisites
 
