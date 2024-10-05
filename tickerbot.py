@@ -30,7 +30,7 @@ def extract_stock_name(stock_info):
 
 
 @client.command()
-async def index(ctx):
+async def nepse(ctx):
     # Fetch the webpage content
     url = "https://www.sharesansar.com/market"  # URL to scrape
     response = requests.get(url)
@@ -129,7 +129,7 @@ def get_sub_index_details(subindex_name):
 async def subidx(ctx, *, subindex_name: str):
     sub_index_details = get_sub_index_details(subindex_name)
     if sub_index_details is None:
-        await ctx.reply(f"The particular subindex : {subindex_name} doesn't exist or there might be a typo.🤔\nPlease use `!helpnepse` to see the correct format! 📜")
+        await ctx.reply(f"The particular subindex : `{subindex_name}` doesn't exist or there might be a typo.🤔\nPlease use `!helpntb` to see the correct format! 📜")
         return
     o = round(float(sub_index_details["Open"].replace(",", "")),2)
     h = round(float(sub_index_details["High"].replace(",", "")),2)
@@ -317,7 +317,7 @@ async def mktsum(ctx):
 @client.command()
 async def stonk(ctx, *, stock_name: str):
     if stock_name.upper() == "NEPSE":
-        await ctx.reply("📊 For details on NEPSE, use `!index` or use `!mktsum` to get the market summary. 📈")
+        await ctx.reply("📊 For details on NEPSE, use `!nepse` or use `!mktsum` to get the market summary. 📈")
         return
     stock_details = get_stock_details(stock_name)
     Embedcolor = discord.Color.default()
@@ -397,16 +397,16 @@ async def stonk(ctx, *, stock_name: str):
 
 
 @client.command()
-async def helpnepse(ctx):
+async def helpntb(ctx):
     embed = discord.Embed(title="NEPSE Command Help", color=discord.Color(0x00FFFF))
 
-    # !index command
+    # !nepse command
     embed.add_field(
-        name="1. !index",
+        name="1. !nepse",
         value=(        
             "**Description:** Retrieves the latest NEPSE indices data.\n"
             "**Data Provided:** NEPSE Index, Sensitive Index, Float Index, Sensitive Float Index.\n"
-            "**Usage:** Type `!index`."
+            "**Usage:** Type `!nepse`."
         ),
         inline=False
     )
@@ -414,7 +414,7 @@ async def helpnepse(ctx):
     # !stonk command
     embed.add_field(
         name="2. !stonk <stock_symbol>",
-        value=(
+        value=( 
             "**Description:** Provides detailed info about a specific stock listed on NEPSE.\n"
             "**Usage:** Type `!stonk <stock_symbol>` (e.g., `!stonk UNL`).\n"
             "**Note:** stock_symbols are case-insensitive."
@@ -425,7 +425,7 @@ async def helpnepse(ctx):
     # !subidx command
     embed.add_field(
         name="3. !subidx <subindex_name>",
-        value=(
+        value=( 
             "**Description:** Get details of a specific sub-index.\n"
             "**Usage:** Type `!subidx <subindex_name>` (e.g., `!subidx BANKING`).\n"
             "**Note:** Use the abbreviations listed below (case insensitive):\n"
@@ -449,7 +449,7 @@ async def helpnepse(ctx):
     # !mktsum command
     embed.add_field(
         name="4. !mktsum",
-        value=(
+        value=( 
             "**Description:** Provides a Market summary of NEPSE's overall performance.\n"
             "**Data Provided:** Total Turnovers, Total Traded Shares, Total Transactions, Total Scrips Traded, Total Market Cap, and Floated Market Cap.\n"
             "**Usage:** Type `!mktsum`."
@@ -460,7 +460,7 @@ async def helpnepse(ctx):
     # !setalert command
     embed.add_field(
         name="5. !setalert <stock_name> <target_price>",
-        value=(
+        value=( 
             "**Description:** Sets an alert for a specific stock when it reaches a target price.\n"
             "`*The bot will send you a DM after your stock price reaches the target price.*`\n"
             "**Usage:** Type `!setalert <stock_name> <target_price>` (e.g., `!setalert NFS 5000`)."
@@ -471,7 +471,7 @@ async def helpnepse(ctx):
     # !showalerts command
     embed.add_field(
         name="6. !showalerts",
-        value=(
+        value=( 
             "**Description:** Displays all active alerts for the user.\n"
             "**Usage:** Type `!showalerts`."
         ),
@@ -481,14 +481,25 @@ async def helpnepse(ctx):
     # !removealert command
     embed.add_field(
         name="7. !removealert <stock_name>",
-        value=(
+        value=( 
             "**Description:** Removes an alert for a specific stock.\n"
             "**Usage:** Type `!removealert <stock_name>` \n(e.g., `!removealert UNL`)."
         ),
         inline=False
     )
 
+    # !topgl command
+    embed.add_field(
+        name="8. !topgl",
+        value=( 
+            "**Description:** Displays the top 10 gainers and top 10 losers in the market.\n"
+            "**Usage:** Type `!topgl`."
+        ),
+        inline=False
+    )
+
     await ctx.reply(embed=embed)
+
 
 def get_stock_price(stock_name):
     response = requests.get(f"https://www.sharesansar.com/live-trading")
