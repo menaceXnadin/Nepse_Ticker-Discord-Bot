@@ -643,7 +643,7 @@ async def topgl(ctx):
             ),
             inline=False  # Set this to True if you want to display fields in the same row.
         )
-    
+    embed_gainers.set_footer(text=f"As of: {last_mktsum}")
     # Create the embed for top losers
     embed_losers = discord.Embed(title="Top 10 Losers", color=discord.Color.red())
     for index,stock in enumerate(losers_data[:10]):
@@ -656,6 +656,7 @@ async def topgl(ctx):
             ),
             inline=False  # Set to True if you want to place fields in a row.
         )
+    embed_losers.set_footer(text=f"As of: {last_mktsum}")
     
     # Send both embeds separately
     await ctx.reply(embed=embed_gainers)
