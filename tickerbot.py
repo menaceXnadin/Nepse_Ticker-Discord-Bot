@@ -120,16 +120,16 @@ def get_sub_index_details(subindex_name):
                 "% change": tds[6].text,
                 "Turnover": tds[7].text,
             }
-        else:
-            return None
-    return sub_index_details
+            return sub_index_details
+    return None
+    
 
 
 @client.command()
 async def subidx(ctx, *, subindex_name: str):
     sub_index_details = get_sub_index_details(subindex_name)
-    if sub_index_details==None:
-        await ctx.reply(f"The particular subindex:{subindex_name} doesn't exist or there might be a typo.🤔\nPlease use `!helpnepse` to see the correct format! 📜")
+    if sub_index_details is None:
+        await ctx.reply(f"The particular subindex : {subindex_name} doesn't exist or there might be a typo.🤔\nPlease use `!helpnepse` to see the correct format! 📜")
         return
     o = round(float(sub_index_details["Open"].replace(",", "")),2)
     h = round(float(sub_index_details["High"].replace(",", "")),2)
@@ -565,4 +565,88 @@ async def removealert(ctx, stock_name: str):
         await ctx.reply(f"❌ Alert removed for {stock_name}.")
     else:
         await ctx.reply(f"No active alert found for {stock_name}.")
+        
+def scrape_top_gainers_losers():
+    response5 = requests.get("https://merolagani.com/LatestMarket.aspx")
+    soup5 = BeautifulSoup(response5.text, 'html.parser')
+    
+    # Extracting gainers and losers data
+    tgtl_col = soup5.find('div', class_="col-md-4 hidden-xs hidden-sm")
+    tgtl_tables = tgtl_col.find_all('table')
+    
+    # Gainers table
+    gainers = tgtl_tables[0]
+    gainers_row = gainers.find_all('tr')
+    
+    # Losers table
+    losers = tgtl_tables[1]
+    losers_row = losers.find_all('tr')
+    
+    gainers_data = []
+    losers_data = []
+    
+    # Top losers
+    for tr in losers_row[1:]:
+        tds = tr.find_all('td')
+        losers_data.append({
+            "symbol": tds[0].text,
+            "ltp": tds[1].text,
+            "%chg": tds[2].text,
+            "high": tds[3].text,
+            "low": tds[4].text,
+            "open": tds[5].text,
+            "qty": tds[6].text,
+            "turnover": tds[7].text
+        })
+    
+    # Top gainers
+    for tr in gainers_row[1:]:
+        tds = tr.find_all('td')
+        gainers_data.append({
+            "symbol": tds[0].text,
+            "ltp": tds[1].text,
+            "%chg": tds[2].text,
+            "high": tds[3].text,
+            "low": tds[4].text,
+            "open": tds[5].text,
+            "qty": tds[6].text,
+            "turnover": tds[7].text
+        })
+    
+    return gainers_data, losers_data
+
+# Command to display top gainers and losers
+@client.command()
+async def topgl(ctx):
+    gainers_data, losers_data = scrape_top_gainers_losers()
+    
+    # Create the embed for top gainers
+    embed_gainers = discord.Embed(title="Top 10 Gainers", color=discord.Color.green())
+    for index,stock in enumerate(gainers_data[:10]):
+        embed_gainers.add_field(
+            name=f"{index+1}.{stock['symbol']}",
+            value=(
+                f"**LTP**: {stock['ltp']}   **%Change**: {stock['%chg']}%\n"
+                f"**Open**: {stock['open']}  **High**: {stock['high']}  **Low**: {stock['low']}\n"
+                f"**Qty**: {stock['qty']}  **Turnover**: {stock['turnover']}\n"
+            ),
+            inline=False  # Set this to True if you want to display fields in the same row.
+        )
+    
+    # Create the embed for top losers
+    embed_losers = discord.Embed(title="Top 10 Losers", color=discord.Color.red())
+    for index,stock in enumerate(losers_data[:10]):
+        embed_losers.add_field(
+            name=f"{index+1}.{stock['symbol']}",
+            value=(
+                f"**LTP**: {stock['ltp']}   **%Change**: {stock['%chg']}%\n"
+                f"**Open**: {stock['open']}  **High**: {stock['high']}  **Low**: {stock['low']}\n"
+                f"**Qty**: {stock['qty']}  **Turnover**: {stock['turnover']}\n"
+            ),
+            inline=False  # Set to True if you want to place fields in a row.
+        )
+    
+    # Send both embeds separately
+    await ctx.reply(embed=embed_gainers)
+    await ctx.reply(embed=embed_losers)
 client.run(MY_BOT_TOKEN)
