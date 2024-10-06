@@ -14,15 +14,19 @@ client = commands.Bot(command_prefix="!", intents=intents)
 
 user_alerts = {}  # dict style: user_alerts = {'user_id': {'stock_name': [target_price1, target_price2]}}
 
-response3 = requests.get("https://www.sharesansar.com/market-summary")
-soup3 = BeautifulSoup(response3.text, "lxml")
-summary_cont = soup3.find("div", id="market_symmary_data")
-last_mktsum = ""
-if summary_cont is not None:
-    msdate = summary_cont.find("h5").find("span")
-    if msdate is not None:
-        last_mktsum = msdate.text
-data_sum = soup3.find_all("td")
+def get_latest_time():
+    response = requests.get("https://www.sharesansar.com/live-trading")
+    soup = BeautifulSoup(response.text, "lxml")
+    stock_rows = soup.find_all("tr")
+    time_stamp = soup.find(id="dDate")
+    if time_stamp is not None:
+        last_updated = time_stamp.text
+    else:
+        last_updated = "Date not Found" 
+    return last_updated
+
+
+
 
 
 def extract_stock_name(stock_info):
@@ -47,7 +51,7 @@ async def nepse(ctx):
 
     # Create an embed object
     embed = discord.Embed(title="NEPSE Index Data", color=discord.Color.yellow())
-    embed.set_footer(text=f"As of:{last_mktsum}")
+    embed.set_footer(text=f"As of:{get_latest_time()}")
 
     # Iterate through each row and extract the data
     for tr in main_indices_rows:
@@ -176,7 +180,7 @@ async def subidx(ctx, *, subindex_name: str):
         value=sub_index_details["Turnover"],
         inline=True,
     )
-    embed.set_footer(text=f"As of: {last_mktsum}")
+    embed.set_footer(text=f"As of: {get_latest_time()}")
     await ctx.reply(embed=embed)
 
 def get_stock_details(stock_name):
@@ -257,6 +261,15 @@ async def on_ready():
 
 
 def get_market_summary():
+    response3 = requests.get("https://www.sharesansar.com/market-summary")
+    soup3 = BeautifulSoup(response3.text, "lxml")
+    summary_cont = soup3.find("div", id="market_symmary_data")
+    last_mktsum = ""
+    if summary_cont is not None:
+        msdate = summary_cont.find("h5").find("span")
+        if msdate is not None:
+            last_mktsum = msdate.text
+    data_sum = soup3.find_all("td")
     market_summary = {
         "As of": last_mktsum,
         f"{data_sum[0].text}": f"{data_sum[1].text}",
@@ -643,7 +656,7 @@ async def topgl(ctx):
             ),
             inline=False  # Set this to True if you want to display fields in the same row.
         )
-    embed_gainers.set_footer(text=f"As of: {last_mktsum}")
+    embed_gainers.set_footer(text=f"As of: {get_latest_time()}")
     # Create the embed for top losers
     embed_losers = discord.Embed(title="Top 10 Losers", color=discord.Color.red())
     for index,stock in enumerate(losers_data[:10]):
@@ -656,7 +669,7 @@ async def topgl(ctx):
             ),
             inline=False  # Set to True if you want to place fields in a row.
         )
-    embed_losers.set_footer(text=f"As of: {last_mktsum}")
+    embed_losers.set_footer(text=f"As of: {get_latest_time()}")
     
     # Send both embeds separately
     await ctx.reply(embed=embed_gainers)
