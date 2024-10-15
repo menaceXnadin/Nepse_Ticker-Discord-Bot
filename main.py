@@ -1,6 +1,7 @@
 import discord
 import regex
 from discord.ext import commands,tasks
+from discord import app_commands
 import requests
 import os
 from bs4 import BeautifulSoup
@@ -14,15 +15,24 @@ client = commands.Bot(command_prefix="!", intents=intents)
 
 user_alerts = {}  # dict style: user_alerts = {'user_id': {'stock_name': [target_price1, target_price2]}}
 
+
+@client.hybrid_command(name='sync', description='Syncs the application commands.')
+async def sync(ctx):
+    await ctx.defer()
+    # Check if the user has Administrator permission
+    if ctx.author.guild_permissions.administrator:
+        await client.tree.sync()  # Syncs commands globally or to the current guild
+        await ctx.send('Command tree synced successfully.')
+    else:
+        await ctx.send('You do not have permission to use this command.')
 def get_latest_time():
-    response = requests.get("https://www.sharesansar.com/live-trading")
+    response = requests.get("https://www.sharesansar.com/live-trading", timeout=10)
     soup = BeautifulSoup(response.text, "lxml")
-    stock_rows = soup.find_all("tr")
     time_stamp = soup.find(id="dDate")
     if time_stamp is not None:
         last_updated = time_stamp.text
     else:
-        last_updated = "Date not Found" 
+        last_updated = "Date not Found"
     return last_updated
 
 
@@ -33,11 +43,15 @@ def extract_stock_name(stock_info):
     return regex.sub(r"\s*\(\s*.*?\s*\)", "", stock_info).strip()
 
 
-@client.command()
+@client.hybrid_command(name='nepse',description='get details on nepse')
 async def nepse(ctx):
+    """
+    Retrieves the latest NEPSE indices data and sends it as an embed message.
+    """
+    await ctx.defer()
     # Fetch the webpage content
     url = "https://www.sharesansar.com/market"  # URL to scrape
-    response = requests.get(url)
+    response = requests.get(url, timeout=10)
     soup = BeautifulSoup(response.text, "lxml")
 
     # Find the table that contains the indices data
@@ -51,7 +65,7 @@ async def nepse(ctx):
 
     # Create an embed object
     embed = discord.Embed(title="NEPSE Index Data", color=discord.Color.yellow())
-    embed.set_footer(text=f"As of:{get_latest_time()}")
+    embed.set_footer(text=f"As of:{get_ss_time()}")
 
     # Iterate through each row and extract the data
     for tr in main_indices_rows:
@@ -85,10 +99,20 @@ async def nepse(ctx):
     # Send the embed to the channel
     await ctx.reply(embed=embed)
 
+def get_ss_time():
+    response3 = requests.get("https://www.sharesansar.com/market-summary", timeout=10)
+    soup3 = BeautifulSoup(response3.text, "lxml")
+    summary_cont = soup3.find("div", id="market_symmary_data")
+    last_mktsum = ""
+    if summary_cont is not None:
+        msdate = summary_cont.find("h5").find("span")
+        if msdate is not None:
+            last_mktsum = msdate.text
+    return last_mktsum
 
 def get_sub_index_details(subindex_name):
     subindex_name = subindex_name.upper()
-    response4 = requests.get("https://www.sharesansar.com/market")
+    response4 = requests.get("https://www.sharesansar.com/market", timeout=10)
     soup4 = BeautifulSoup(response4.text, "lxml")
     alltable = soup4.find_all(
         "table", class_="table table-bordered table-striped table-hover"
@@ -129,65 +153,58 @@ def get_sub_index_details(subindex_name):
     
 
 
-@client.command()
+# Define your subindex options with only keys for autocomplete
+subindex_options = [
+    "BANKING",
+    "DEVBANK",
+    "FINANCE",
+    "HOTEL",
+    "HYDRO",
+    "INVESTMENT",
+    "LIFE",
+    "MANU",
+    "MICRO",
+    "MF",
+    "NONLIFE",
+    "OTHERS",
+    "TRADING"
+]
+
+@client.hybrid_command(name='subidx', description='Get subindex details')
+@app_commands.describe(subindex_name='The name of the subindex')
 async def subidx(ctx, *, subindex_name: str):
+    await ctx.defer()
     sub_index_details = get_sub_index_details(subindex_name)
     if sub_index_details is None:
         await ctx.reply(f"The particular subindex : `{subindex_name}` doesn't exist or there might be a typo.🤔\nPlease use `!helpntb` to see the correct format! 📜")
         return
-    o = round(float(sub_index_details["Open"].replace(",", "")),2)
-    h = round(float(sub_index_details["High"].replace(",", "")),2)
-    c = round(float(sub_index_details["close"].replace(",", "")),2)
-    if o > c or o > h or o > c:
-        embedcolor = discord.Color.red()
-    else:
-        embedcolor = discord.Color.green()
+    o = round(float(sub_index_details["Open"].replace(",", "")), 2)
+    h = round(float(sub_index_details["High"].replace(",", "")), 2)
+    c = round(float(sub_index_details["close"].replace(",", "")), 2)
+    embedcolor = discord.Color.red() if o > c or o > h else discord.Color.green()
     embed = discord.Embed(
         title=f"Data for {sub_index_details['Sub Index']}", color=embedcolor
     )
-    embed.add_field(
-        name=list(sub_index_details.keys())[1],
-        value=sub_index_details["Open"],
-        inline=True,
-    )
-    embed.add_field(
-        name=list(sub_index_details.keys())[2],
-        value=sub_index_details["High"],
-        inline=True,
-    )
-    embed.add_field(
-        name=list(sub_index_details.keys())[3],
-        value=sub_index_details["Low"],
-        inline=True,
-    )
-    embed.add_field(
-        name=list(sub_index_details.keys())[4],
-        value=sub_index_details["close"],
-        inline=True,
-    )
-    embed.add_field(
-        name=list(sub_index_details.keys())[5],
-        value=sub_index_details["Pt.Change"],
-        inline=True,
-    )
-    embed.add_field(
-        name=list(sub_index_details.keys())[6],
-        value=sub_index_details["% change"],
-        inline=True,
-    )
-    embed.add_field(
-        name=list(sub_index_details.keys())[7],
-        value=sub_index_details["Turnover"],
-        inline=True,
-    )
-    embed.set_footer(text=f"As of: {get_latest_time()}")
+    for key in list(sub_index_details.keys())[1:]:
+        embed.add_field(
+            name=key,
+            value=sub_index_details[key],
+            inline=True,
+        )
+    embed.set_footer(text=f"As of: {get_ss_time()}")
     await ctx.reply(embed=embed)
+
+@subidx.autocomplete('subindex_name')
+async def subindex_autocomplete(interaction: discord.Interaction, current: str):
+    options = [key for key in subindex_options if current.lower() in key.lower()]
+    
+    return [app_commands.Choice(name=key, value=key) for key in options]
 
 def get_stock_details(stock_name):
     # if stock_name.upper()=="NEPSE":
     #     return None
-    response = requests.get("https://www.sharesansar.com/live-trading")
-    response2 = requests.get(f"https://www.sharesansar.com/company/{stock_name}")
+    response = requests.get("https://www.sharesansar.com/live-trading",timeout=10)
+    response2 = requests.get(f"https://www.sharesansar.com/company/{stock_name}", timeout=10)
 
     soup = BeautifulSoup(response.text, "lxml")
     soup2 = BeautifulSoup(response2.text, "lxml")
@@ -261,7 +278,7 @@ async def on_ready():
 
 
 def get_market_summary():
-    response3 = requests.get("https://www.sharesansar.com/market-summary")
+    response3 = requests.get("https://www.sharesansar.com/market-summary",timeout=10)
     soup3 = BeautifulSoup(response3.text, "lxml")
     summary_cont = soup3.find("div", id="market_symmary_data")
     last_mktsum = ""
@@ -282,8 +299,9 @@ def get_market_summary():
     return market_summary
 
 
-@client.command()
+@client.hybrid_command(name='mktsum',description='Get market summary')
 async def mktsum(ctx):
+    await ctx.defer()
     market_summary = get_market_summary()
 
     # Create an embed message for market summary
@@ -327,8 +345,9 @@ async def mktsum(ctx):
     await ctx.reply(embed=embed)
 
 
-@client.command()
+@client.hybrid_command(name='stonk',description='get info about a stock')
 async def stonk(ctx, *, stock_name: str):
+    await ctx.defer()
     if stock_name.upper() == "NEPSE":
         await ctx.reply("📊 For details on NEPSE, use `!nepse` or use `!mktsum` to get the market summary. 📈")
         return
@@ -355,7 +374,7 @@ async def stonk(ctx, *, stock_name: str):
             ud_emoji = "🔽"
             Embedcolor = discord.Color.red()
     except (KeyError, ValueError) as e:
-        await ctx.reply("Error processing stock data. Please ensure the stock name is correct.")
+        await ctx.reply("Error processing stock data. Please ensure the stock name is correct.",e)
         return
 
     embed = discord.Embed(
@@ -409,27 +428,29 @@ async def stonk(ctx, *, stock_name: str):
 
 
 
-@client.command()
+@client.hybrid_command(name='helpntb', description='Get help and information about available commands.')
 async def helpntb(ctx):
+    await ctx.defer()
+    
     embed = discord.Embed(title="NEPSE Command Help", color=discord.Color(0x00FFFF))
 
     # !nepse command
     embed.add_field(
-        name="1. !nepse",
+        name="1. !nepse or /nepse",
         value=(        
             "**Description:** Retrieves the latest NEPSE indices data.\n"
             "**Data Provided:** NEPSE Index, Sensitive Index, Float Index, Sensitive Float Index.\n"
-            "**Usage:** Type `!nepse`."
+            "**Usage:** Type `!nepse` or `/nepse`."
         ),
         inline=False
     )
 
     # !stonk command
     embed.add_field(
-        name="2. !stonk <stock_symbol>",
+        name="2. !stonk <stock_symbol> or /stonk <stock_symbol>",
         value=( 
             "**Description:** Provides detailed info about a specific stock listed on NEPSE.\n"
-            "**Usage:** Type `!stonk <stock_symbol>` (e.g., `!stonk UNL`).\n"
+            "**Usage:** Type `!stonk <stock_symbol>` or `/stonk <stock_symbol>` (e.g., `!stonk UNL` or `/stonk UNL`).\n"
             "**Note:** stock_symbols are case-insensitive."
         ),
         inline=False
@@ -437,10 +458,10 @@ async def helpntb(ctx):
 
     # !subidx command
     embed.add_field(
-        name="3. !subidx <subindex_name>",
+        name="3. !subidx <subindex_name> or /subidx <subindex_name>",
         value=( 
             "**Description:** Get details of a specific sub-index.\n"
-            "**Usage:** Type `!subidx <subindex_name>` (e.g., `!subidx BANKING`).\n"
+            "**Usage:** Type `!subidx <subindex_name>` or `/subidx <subindex_name>` (e.g., `!subidx BANKING` or `/subidx BANKING`).\n"
             "**Note:** Use the abbreviations listed below (case insensitive):\n"
             " - **BANKING**: Banking SubIndex\n"
             " - **DEVBANK**: Development Bank Index\n"
@@ -461,61 +482,63 @@ async def helpntb(ctx):
 
     # !mktsum command
     embed.add_field(
-        name="4. !mktsum",
+        name="4. !mktsum or /mktsum",
         value=( 
             "**Description:** Provides a Market summary of NEPSE's overall performance.\n"
             "**Data Provided:** Total Turnovers, Total Traded Shares, Total Transactions, Total Scrips Traded, Total Market Cap, and Floated Market Cap.\n"
-            "**Usage:** Type `!mktsum`."
+            "**Usage:** Type `!mktsum` or `/mktsum`."
         ),
         inline=False
     )
 
     # !setalert command
     embed.add_field(
-        name="5. !setalert <stock_name> <target_price>",
+        name="5. !setalert <stock_name> <target_price> or /setalert <stock_name> <target_price>",
         value=( 
             "**Description:** Sets an alert for a specific stock when it reaches a target price.\n"
             "`*The bot will send you a DM after your stock price reaches the target price.*`\n"
-            "**Usage:** Type `!setalert <stock_name> <target_price>` (e.g., `!setalert NFS 5000`)."
+            "**Usage:** Type `!setalert <stock_name> <target_price>` or `/setalert <stock_name> <target_price>` (e.g., `!setalert NFS 5000` or `/setalert NFS 5000`)."
         ),
         inline=False
     )
 
     # !showalerts command
     embed.add_field(
-        name="6. !showalerts",
+        name="6. !showalerts or /showalerts",
         value=( 
             "**Description:** Displays all active alerts for the user.\n"
-            "**Usage:** Type `!showalerts`."
+            "**Usage:** Type `!showalerts` or `/showalerts`."
         ),
         inline=False
     )
 
     # !removealert command
     embed.add_field(
-        name="7. !removealert <stock_name>",
+        name="7. !removealert <stock_name> or /removealert <stock_name>",
         value=( 
             "**Description:** Removes an alert for a specific stock.\n"
-            "**Usage:** Type `!removealert <stock_name>` \n(e.g., `!removealert UNL`)."
+            "**Usage:** Type `!removealert <stock_name>` or `/removealert <stock_name>` \n(e.g., `!removealert UNL` or `/removealert UNL`)."
         ),
         inline=False
     )
 
     # !topgl command
     embed.add_field(
-        name="8. !topgl",
+        name="8. !topgl or /topgl",
         value=( 
             "**Description:** Displays the top 10 gainers and top 10 losers in the market.\n"
-            "**Usage:** Type `!topgl`."
+            "**Usage:** Type `!topgl` or `/topgl`."
         ),
         inline=False
     )
+
+    embed.set_footer(text="Both traditional commands (starting with !) and slash commands (starting with /) are supported. Use whichever you prefer!")
 
     await ctx.reply(embed=embed)
 
 
 def get_stock_price(stock_name):
-    response = requests.get(f"https://www.sharesansar.com/live-trading")
+    response = requests.get("https://www.sharesansar.com/live-trading", timeout=10)
     soup = BeautifulSoup(response.text, 'lxml')
     df = soup.find('tbody')
     stock_rows = df.find_all('tr')
@@ -547,7 +570,7 @@ async def check_stock_alerts():
         for stock_name in stocks_to_remove:
             del alerts[stock_name]
 def check_stock_exists(stock_name):
-    response = requests.get(f"https://www.sharesansar.com/live-trading")
+    response = requests.get("https://www.sharesansar.com/live-trading",timeout=10)
     soup = BeautifulSoup(response.text, 'lxml')    
     df = soup.find('tbody')
     stock_rows = df.find_all('tr')  # List of all stock rows
@@ -557,8 +580,9 @@ def check_stock_exists(stock_name):
             if td.text.strip() == stock_name.upper():
                 return True
     return None
-@client.command()
+@client.hybrid_command(name='setalert',description='set alert for stocks')
 async def setalert(ctx, stock_name: str, target_price: float):
+    await ctx.defer()
     user_id = ctx.author.id
     stock_name = stock_name.upper()
     if check_stock_exists(stock_name) is None:
@@ -571,8 +595,9 @@ async def setalert(ctx, stock_name: str, target_price: float):
     user_alerts[user_id][stock_name].append(target_price)  # Append to the list of target prices
     await ctx.reply(f"✅ Alert set for {stock_name} at Rs.{target_price}.")
 
-@client.command()
+@client.hybrid_command(name='showalerts',description='displays your stock alerts')
 async def showalerts(ctx):
+    await ctx.defer()
     user_id = ctx.author.id
     if user_id in user_alerts and user_alerts[user_id]:
         alert_list = "\n".join([f"{stock}: Rs. {', Rs. '.join(map(str, prices))}" for stock, prices in user_alerts[user_id].items()])
@@ -580,8 +605,9 @@ async def showalerts(ctx):
     else:
         await ctx.reply("You have no active alerts.")
 
-@client.command()
+@client.hybrid_command(name='removealert',description='removes alert for your script')
 async def removealert(ctx, stock_name: str):
+    await ctx.defer()
     user_id = ctx.author.id
     stock_name = stock_name.upper()
     if user_id in user_alerts and stock_name in user_alerts[user_id]:
@@ -591,7 +617,7 @@ async def removealert(ctx, stock_name: str):
         await ctx.reply(f"No active alert found for {stock_name}.")
         
 def scrape_top_gainers_losers():
-    response5 = requests.get("https://merolagani.com/LatestMarket.aspx")
+    response5 = requests.get("https://merolagani.com/LatestMarket.aspx", timeout=10)
     soup5 = BeautifulSoup(response5.text, 'html.parser')
     
     # Extracting gainers and losers data
@@ -640,8 +666,10 @@ def scrape_top_gainers_losers():
     return gainers_data, losers_data
 
 # Command to display top gainers and losers
-@client.command()
+@client.hybrid_command(name='topgl',description='top 10 gainers and losers')
 async def topgl(ctx):
+    await ctx.defer()
+    
     gainers_data, losers_data = scrape_top_gainers_losers()
     
     # Create the embed for top gainers
@@ -667,11 +695,10 @@ async def topgl(ctx):
                 f"**Open**: {stock['open']}  **High**: {stock['high']}  **Low**: {stock['low']}\n"
                 f"**Qty**: {stock['qty']}  **Turnover**: {stock['turnover']}\n"
             ),
-            inline=False  # Set to True if you want to place fields in a row.
+            inline=False  
         )
     embed_losers.set_footer(text=f"As of: {get_latest_time()}")
     
-    # Send both embeds separately
     await ctx.reply(embed=embed_gainers)
     await ctx.reply(embed=embed_losers)
 client.run(MY_BOT_TOKEN)
