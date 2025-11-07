@@ -38,6 +38,11 @@
   - Full gainers view (top 10)
   - Full losers view (top 10)
   - Navigation and refresh buttons
+- `/ipo` - View all open IPOs/public offerings
+  - Shows IPOs with "Open" status
+  - Displays opening/closing dates with days remaining
+  - Shows type (IPO, Right Share, Mutual Fund, Bond)
+  - Includes price, units, and issue manager info
 
 ### 📈 Chart Commands
 - `/chart <symbol> [days]` - Generate candlestick charts (1-365 days)

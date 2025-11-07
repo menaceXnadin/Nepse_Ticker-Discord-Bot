@@ -792,75 +792,161 @@ def get_stock_details(stock_name):
     cached_data = market_cache.get(stock_name.upper(), 'stock_details')
     if cached_data:
         return cached_data
+
+    import cloudscraper
+    scraper = cloudscraper.create_scraper()
     
-    # Cache miss - scrape the data
-    response = requests.get(
-        "https://www.sharesansar.com/live-trading", timeout=10)
-    response2 = requests.get(
-        f"https://www.sharesansar.com/company/{stock_name}", timeout=10)
-
-    soup = BeautifulSoup(response.text, "lxml")
-    soup2 = BeautifulSoup(response2.text, "lxml")
-
-    # Check if the response for the stock details page was successful
-    if response2.status_code != 200:
-        return None  # Stock not found
-
-    all_rows = soup2.find_all("div", class_="row")
-    if len(all_rows) < 6:  # If there's not enough data
-        return None
-
-    info_row = all_rows[5]
-    second_row = info_row.find_all("div", class_="col-md-12")
-    shareinfo = second_row[1]
-    heading_list = shareinfo.find_all("h4")
-    company_full_form_tag = soup2.find(
-        "h1", style="color: #333;font-size: 20px;font-weight: 600;"
-    )
-    company_fullform = ""
-    if company_full_form_tag is not None:
-        company_fullform = company_full_form_tag.text
-    else:
-        print("NO details Found")
-
-    company_details = {
-        "sector": heading_list[1].find("span", class_="text-org").text,
-        "share registrar": heading_list[2].find("span", class_="text-org").text,
-        "company fullform": company_fullform,
-    }
-    stock_rows = soup.find_all("tr")
-    time_stamp = soup.find(id="dDate")
-    if time_stamp is not None:
-        last_updated = time_stamp.text
-    else:
-        last_updated = "Date not Found"
-
     upper_stonk = stock_name.upper()
-
-    for row in stock_rows[1:]:
-        row_data = row.find_all("td")
-
-        if row_data[1].text.strip() == upper_stonk:
-            stock_details = {
-                "Symbol": row_data[1].text.strip(),
-                "Last Traded Price": row_data[2].text.strip(),
-                "Pt Change": row_data[3].text.strip(),
-                "% Change": row_data[4].text.strip(),
-                "Open": row_data[5].text.strip(),
-                "High": row_data[6].text.strip(),
-                "Low": row_data[7].text.strip(),
-                "Volume": row_data[8].text.strip(),
-                "Prev.Closing": row_data[9].text.strip(),
-                "As of": last_updated,
-                "Sector": company_details["sector"],
-                "Share Registrar": company_details["share registrar"],
-                "Company fullform": company_details["company fullform"],
-            }
-            # Store in cache before returning
-            market_cache.set(stock_name.upper(), 'stock_details', stock_details)
-            return stock_details
-
-    return None  # Return None if the stock was not found
+    stock_price_data = None
+    use_json_api = True
+    
+    # Try to fetch live price data from NepseAlpha API
+    try:
+        response = scraper.get('https://nepsealpha.com/live/stocks', timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            prices = data.get('stock_live', {}).get('prices', [])
+            
+            # Find the stock in the price data
+            for item in prices:
+                if item.get('symbol', '').upper() == upper_stonk:
+                    stock_price_data = item
+                    break
+    except Exception as e:
+        print(f"Error fetching from NepseAlpha API: {e}")
+        use_json_api = False
+    
+    # If JSON API fails or stock not found, fall back to ShareSansar scraping for price data
+    if not stock_price_data:
+        use_json_api = False
+    
+    # If JSON API fails or stock not found, fall back to ShareSansar scraping for price data
+    if not stock_price_data:
+        use_json_api = False
+    
+    # Fetch company details (sector, registrar, company fullform) from ShareSansar
+    company_details = {
+        "sector": "N/A",
+        "share registrar": "N/A",
+        "company fullform": upper_stonk,
+    }
+    
+    # Variables for fallback data
+    stock_details_fallback = None
+    
+    try:
+        response2 = requests.get(
+            f"https://www.sharesansar.com/company/{stock_name}", timeout=10)
+        
+        if response2.status_code == 200:
+            soup2 = BeautifulSoup(response2.text, "lxml")
+            all_rows = soup2.find_all("div", class_="row")
+            
+            if len(all_rows) >= 6:
+                info_row = all_rows[5]
+                second_row = info_row.find_all("div", class_="col-md-12")
+                if len(second_row) > 1:
+                    shareinfo = second_row[1]
+                    heading_list = shareinfo.find_all("h4")
+                    
+                    if len(heading_list) > 2:
+                        company_details["sector"] = heading_list[1].find("span", class_="text-org").text
+                        company_details["share registrar"] = heading_list[2].find("span", class_="text-org").text
+            
+            company_full_form_tag = soup2.find(
+                "h1", style="color: #333;font-size: 20px;font-weight: 600;"
+            )
+            if company_full_form_tag is not None:
+                company_details["company fullform"] = company_full_form_tag.text
+    except Exception as e:
+        print(f"Error fetching company details from ShareSansar: {e}")
+    
+    # If we need to fall back to ShareSansar for price data
+    if not use_json_api:
+        try:
+            response_live = requests.get(
+                "https://www.sharesansar.com/live-trading", timeout=10)
+            
+            if response_live.status_code == 200:
+                soup = BeautifulSoup(response_live.text, "lxml")
+                stock_rows = soup.find_all("tr")
+                time_stamp = soup.find(id="dDate")
+                last_updated = time_stamp.text if time_stamp is not None else "Date not Found"
+                
+                for row in stock_rows[1:]:
+                    row_data = row.find_all("td")
+                    
+                    if len(row_data) > 9 and row_data[1].text.strip() == upper_stonk:
+                        stock_details_fallback = {
+                            "Symbol": row_data[1].text.strip(),
+                            "Last Traded Price": row_data[2].text.strip(),
+                            "Pt Change": row_data[3].text.strip(),
+                            "% Change": row_data[4].text.strip(),
+                            "Open": row_data[5].text.strip(),
+                            "High": row_data[6].text.strip(),
+                            "Low": row_data[7].text.strip(),
+                            "Volume": row_data[8].text.strip(),
+                            "Prev.Closing": row_data[9].text.strip(),
+                            "As of": last_updated,
+                            "Sector": company_details["sector"],
+                            "Share Registrar": company_details["share registrar"],
+                            "Company fullform": company_details["company fullform"],
+                        }
+                        # Indicate fallback was used
+                        print(f"STONK: Using fallback (ShareSansar) for {upper_stonk}")
+                        market_cache.set(stock_name.upper(), 'stock_details', stock_details_fallback)
+                        return stock_details_fallback
+        except Exception as e:
+            print(f"Error fetching from ShareSansar live-trading: {e}")
+        
+        # If fallback also failed
+        return None
+    
+    # Extract price data from JSON API
+    close_price = stock_price_data.get("close", 0)
+    open_price = stock_price_data.get("open", 0)
+    high_price = stock_price_data.get("high", 0)
+    low_price = stock_price_data.get("low", 0)
+    volume = stock_price_data.get("volume", 0)
+    percent_change = stock_price_data.get("percent_change", 0)
+    
+    # Calculate previous close and point change
+    # Formula: prev_close = close / (1 + percent_change/100)
+    # Point Change = close - prev_close
+    try:
+        if percent_change != 0 and close_price != 0:
+            prev_close = close_price / (1 + percent_change / 100)
+            pt_change = close_price - prev_close
+        else:
+            prev_close = close_price
+            pt_change = 0
+    except (TypeError, ZeroDivisionError):
+        prev_close = close_price
+        pt_change = 0
+    
+    # Format values with proper number formatting
+    stock_details = {
+        "Symbol": stock_price_data.get("symbol", "N/A"),
+        "Last Traded Price": f"{close_price:,.2f}" if isinstance(close_price, (int, float)) else "N/A",
+        "Pt Change": f"{pt_change:,.2f}" if isinstance(pt_change, (int, float)) else "N/A",
+        "% Change": f"{percent_change:.2f}%" if isinstance(percent_change, (int, float)) else "N/A",
+        "Open": f"{open_price:,.2f}" if isinstance(open_price, (int, float)) else "N/A",
+        "High": f"{high_price:,.2f}" if isinstance(high_price, (int, float)) else "N/A",
+        "Low": f"{low_price:,.2f}" if isinstance(low_price, (int, float)) else "N/A",
+        "Volume": f"{int(volume):,}" if isinstance(volume, (int, float)) else "N/A",
+        "Prev.Closing": f"{prev_close:,.2f}" if isinstance(prev_close, (int, float)) else "N/A",
+        "As of": data.get('stock_live', {}).get('asOf', 'N/A'),
+        "Sector": company_details["sector"],
+        "Share Registrar": company_details["share registrar"],
+        "Company fullform": company_details["company fullform"],
+    }
+    # Indicate JSON/hybrid method was used
+    try:
+        print(f"STONK: Using JSON hybrid method for {upper_stonk}")
+    except Exception:
+        pass
+    market_cache.set(stock_name.upper(), 'stock_details', stock_details)
+    return stock_details
 
 
 @client.event
@@ -1027,14 +1113,19 @@ async def stonk(ctx, *, stock_name: str):
     if stock_name.upper() == "NEPSE":
         await ctx.reply("📊 For details on NEPSE, use `!nepse` or use `!mktsum` to get the market summary. 📈")
         return
-    stock_details = get_stock_details(stock_name)
+    
+    # Get event loop first
+    loop = ctx.bot.loop
+    
+    # Fetch stock details and company logo in parallel
+    stock_details = await loop.run_in_executor(None, get_stock_details, stock_name)
+    
     Embedcolor = discord.Color.default()
     ud_emoji = ""
     pt_prefix = ""
     
     # Fetch company logo
     company_url = f"https://sharehubnepal.com/company/{stock_name.strip().upper()}"
-    loop = ctx.bot.loop
     img_url = await loop.run_in_executor(None, fetch_and_extract_image, company_url)
 
     # Check if stock details were found
@@ -1235,6 +1326,7 @@ async def chart(ctx, symbol: str = None, days: int = 90):
 		change = latest.get('change', 'N/A')
 		change_percent = latest.get('changePercent', 'N/A')
 		volume = latest.get('volume', 'N/A')
+		latest_date = latest.get('date', 'N/A')  # Extract date from the API data
 		
 		# Fetch company logo (same logic as in stonk command)
 		company_url = f"https://sharehubnepal.com/company/{symbol.strip().upper()}"
@@ -1266,8 +1358,11 @@ async def chart(ctx, symbol: str = None, days: int = 90):
 		if img_url:
 			embed.set_thumbnail(url=img_url)
 		
-		# embed.set_footer(text=f"Requested by {ctx.author.name}", icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
-		embed.set_footer(text=f"As of: {get_ss_time()}")
+		# Set footer with latest date from the API data
+		embed.set_footer(
+			text=f"As of: {latest_date}" 
+		)
+		
 		# Send chart as file with embed
 		file = discord.File(filename, filename=filename)
 		embed.set_image(url=f"attachment://{filename}")
@@ -1488,6 +1583,18 @@ async def helpntb(ctx):
         value=(
             "**Description:** Show detailed help for the chart command.\n"
             "**Usage:** Type `!charthelp` or `/charthelp`."
+        ),
+        inline=False
+    )
+
+    # !ipo command
+    embed.add_field(
+        name="11. !ipo or /ipo",
+        value=(
+            "**Description:** Displays all IPOs/public offerings with 'Open' status.\n"
+            "**Data Provided:** Symbol, Name, Sector, Units, Price, Opening/Closing dates, Issue Manager, and more.\n"
+            "**Usage:** Type `!ipo` or `/ipo`.\n"
+            "**Features:** Shows days remaining, type (IPO/Right/MutualFund), and total amount."
         ),
         inline=False
     )
@@ -1788,6 +1895,21 @@ def scrape_top_gainers_losers():
 # Top Gainers/Losers Pagination View
 # ============================================
 
+class IPOApplyButton(discord.ui.View):
+    """Button view for IPO application"""
+    def __init__(self):
+        super().__init__(timeout=None)  # Persistent button
+        
+        # Add MeroShare login button
+        meroshare_button = discord.ui.Button(
+            label="Apply via MeroShare",
+            style=discord.ButtonStyle.link,
+            url="https://meroshare.cdsc.com.np/#/login",
+            emoji="🚀"
+        )
+        self.add_item(meroshare_button)
+
+
 class TopGLPagination(discord.ui.View):
     """Pagination view for top gainers and losers"""
     def __init__(self, gainers_data, losers_data, timestamp):
@@ -1951,6 +2073,199 @@ async def topgl(ctx):
     await ctx.reply(embed=view.get_current_embed(), view=view)
 
 
+@client.hybrid_command(name='ipo', description='View all open IPOs/public offerings')
+async def ipo(ctx):
+    """
+    Display all IPOs with "Open" status in a clean grid layout
+    """
+    await ctx.defer()
+    
+    try:
+        # Fetch data from ShareHub Nepal API
+        response = requests.get(
+            "https://sharehubnepal.com/data/api/v1/public-offering",
+            timeout=10
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        if not data.get('success'):
+            embed = discord.Embed(
+                title="⚠️ Unable to Fetch IPO Data",
+                description="API request failed. Please try again later.",
+                color=0xFF6B6B
+            )
+            await ctx.reply(embed=embed)
+            return
+        
+        # Filter for open IPOs
+        all_ipos = data.get('data', {}).get('content', [])
+        open_ipos = [ipo for ipo in all_ipos if ipo.get('status') == 'Open']
+        
+        if not open_ipos:
+            embed = discord.Embed(
+                title="💤 No Open IPOs",
+                description="No IPOs are currently open for subscription. Check back later!",
+                color=0x5865F2
+            )
+            await ctx.reply(embed=embed)
+            return
+        
+        # Create embed with vibrant color based on number of IPOs
+        embed_colors = [0x00D9FF, 0xFF006E, 0x8338EC, 0x3A86FF, 0xFB5607, 0x06FFA5]
+        embed_color = embed_colors[len(open_ipos) % len(embed_colors)]
+        
+        # Create main embed
+        embed = discord.Embed(
+            title=f"🎯 {len(open_ipos)} Open {'IPO' if len(open_ipos) == 1 else 'IPOs'} Available",
+            description="",
+            color=embed_color
+        )
+        
+        # Process each IPO in grid layout
+        for index, ipo in enumerate(open_ipos, 1):
+            # Extract IPO details
+            symbol = ipo.get('symbol', 'N/A')
+            name = ipo.get('name', 'N/A')
+            sector = ipo.get('sector', 'N/A')
+            units = ipo.get('units', 0)
+            price = ipo.get('price', 0)
+            total_amount = ipo.get('totalAmount', 0)
+            opening_date = ipo.get('openingDate', 'N/A')
+            closing_date = ipo.get('closingDate', 'N/A')
+            extended_closing = ipo.get('extendedClosingDate', None)
+            issue_manager = ipo.get('issueManager', 'N/A')
+            ipo_type = ipo.get('type', 'N/A')
+            ipo_for = ipo.get('for', 'N/A')
+            
+            # Format dates
+            try:
+                opening_date_obj = datetime.fromisoformat(opening_date.replace('T', ' '))
+                opening_date_str = opening_date_obj.strftime('%d %b %Y')
+            except:
+                opening_date_str = opening_date
+            
+            try:
+                closing_date_obj = datetime.fromisoformat(closing_date.replace('T', ' '))
+                closing_date_str = closing_date_obj.strftime('%d %b %Y')
+            except:
+                closing_date_str = closing_date
+            
+            # Calculate days remaining with urgency indicator
+            days_left = None
+            urgency_emoji = "🟢"
+            urgency_text = ""
+            try:
+                target_date = extended_closing if extended_closing else closing_date
+                target_date_obj = datetime.fromisoformat(target_date.replace('T', ' '))
+                days_left = (target_date_obj - datetime.now()).days
+                
+                if days_left >= 0:
+                    if days_left <= 2:
+                        urgency_emoji = "🔴"
+                        urgency_text = f"LAST {days_left} DAY{'S' if days_left != 1 else ''}!"
+                    elif days_left <= 5:
+                        urgency_emoji = "🟡"
+                        urgency_text = f"{days_left} days left"
+                    else:
+                        urgency_emoji = "🟢"
+                        urgency_text = f"{days_left} days"
+            except:
+                urgency_text = "Check dates"
+            
+            # Type emoji
+            type_emojis = {
+                'Ipo': '🆕',
+                'Right': '🔄',
+                'MutualFund': '💼',
+                'BondOrDebenture': '💰'
+            }
+            type_emoji = type_emojis.get(ipo_type, '📊')
+            
+            # Rank emoji
+            rank_emojis = {1: "🥇", 2: "🥈", 3: "🥉"}
+            rank_emoji = rank_emojis.get(index, "💎")
+            
+            # Build left column (Company & Financial Info)
+            left_column = (
+                f"**{type_emoji} Type:** {ipo_type}\n\n"
+                f"**🏢 Sector:** {sector}\n\n"
+                f"**👥 For:** {ipo_for}\n\n"
+                f"**📊 Units:** {units:,}\n\n"
+                f"**💵 Price:** Rs. {price:,}\n\n"
+                f"**💰 Amount:** {format_rupees(total_amount)}"
+            )
+            
+            # Build right column (Timeline & Manager)
+            right_column = (
+                f"**📅 Opens:** {opening_date_str}\n\n"
+                f"**📅 Closes:** {closing_date_str}\n\n"
+            )
+            
+            if extended_closing:
+                try:
+                    ext_date_obj = datetime.fromisoformat(extended_closing.replace('T', ' '))
+                    right_column += f"**🔄 Extended:** {ext_date_obj.strftime('%d %b %Y')}\n\n"
+                except:
+                    pass
+            
+            right_column += f"**{urgency_emoji} Status:** {urgency_text}\n\n"
+            right_column += f"**🏦 Manager:** {issue_manager}"
+            
+            # Add company name as field title with spacing
+            embed.add_field(
+                name=f"\u200b",
+                value=f"## {rank_emoji} **{symbol}** — {name}",
+                inline=False
+            )
+            
+            # Add two columns side by side
+            embed.add_field(
+                name="📋 Details",
+                value=left_column,
+                inline=True
+            )
+            
+            embed.add_field(
+                name="⏰ Timeline",
+                value=right_column,
+                inline=True
+            )
+            
+            # Add spacer between IPOs if there are multiple
+            if index < len(open_ipos):
+                embed.add_field(
+                    name="\u200b",
+                    value="\u200b",
+                    inline=False
+                )
+                embed.add_field(
+                    name="\u200b",
+                    value="\u200b",
+                    inline=False
+                )
+        
+        # Create button view for MeroShare application
+        view = IPOApplyButton()
+        
+        await ctx.reply(embed=embed, view=view)
+        
+    except requests.exceptions.RequestException as e:
+        embed = discord.Embed(
+            title="🔌 Connection Error",
+            description=f"Unable to connect to API. Please try again.\n{str(e)[:100]}",
+            color=0xFF4444
+        )
+        await ctx.reply(embed=embed)
+    except Exception as e:
+        embed = discord.Embed(
+            title="⚠️ Error",
+            description=f"An error occurred: {str(e)[:200]}",
+            color=0xFF6B6B
+        )
+        await ctx.reply(embed=embed)
+
+
 @client.hybrid_command(name='cachestats', description='View cache statistics (Admin only)')
 async def cachestats(ctx):
     """Display cache statistics"""
@@ -2008,6 +2323,4 @@ async def clearcache(ctx, category: str = None):
         await ctx.reply(f"✅ Cache cleared for category: `{category}`")
     else:
         await ctx.reply("✅ All cache cleared successfully!")
-
-
 client.run(MY_BOT_TOKEN)
