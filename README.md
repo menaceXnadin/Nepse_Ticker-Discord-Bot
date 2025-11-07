@@ -71,7 +71,8 @@ The data is sourced from [Sharesansar](https://www.sharesansar.com/) and [Mero L
 
 ## Prerequisites
 
-1. **Python 3.8 or higher**
+1. **Python 3.12** (recommended)
+  - Pinning for deployment: prefer using a `.python-version` file in the app root containing `3.12.0` (some platforms and tools now use this). For Heroku, `runtime.txt` is still supported; you can keep it for backward compatibility (it currently contains `python-3.12.0`).
 2. **Discord Account**
 
 ## Steps to Set Up the Bot
