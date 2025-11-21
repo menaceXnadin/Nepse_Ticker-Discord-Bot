@@ -2,27 +2,70 @@
 
 📺 Demo: https://youtu.be/RLxecOzjsJ0
 
-👋 Welcome to the NEPSE Ticker Bot! This bot is designed to provide you with real-time updates from the Nepal Stock Exchange (NEPSE) directly in your Discord server. Whether you're tracking specific stocks or monitoring overall market performance, this bot has you covered with a range of handy commands.
+👋 Welcome to the NEPSE Ticker Bot! This bot is designed to provide you with real-time updates from the Nepal Stock Exchange (NEPSE) directly in your Discord server. Whether you're tracking specific stocks or monitoring overall market performance, this bot has you covered with a range of handy commands and **interactive features**.
+
+## ✨ New UI Enhancements
+
+**Latest Update:** The bot now features a completely redesigned user interface with:
+- 🎨 **Rich Embeds** - Beautiful, organized information displays
+- 🔘 **Interactive Buttons** - View charts, set alerts, and refresh data with one click
+- 📊 **Pagination** - Navigate through top gainers/losers with ease
+- 📈 **Smart Formatting** - Numbers displayed as 5.23B, 12.45M for better readability
+- 🎯 **Progress Indicators** - See how close your alerts are to triggering
+- 💎 **Enhanced Visuals** - Color-coded trends, emojis, and better organization
 
 ## Features
 
-- Retrieves real-time NEPSE indices data.
-- Provides detailed information about specific stocks.
-- Allows users to check details of various sub-indices.
-- Offers market summary insights.
-- Enables users to set alerts for specific stock prices.
-- Displays all active alerts for users.
-- Removes alerts as needed.
+- Retrieves real-time NEPSE indices data with trend indicators
+- Provides detailed information about specific stocks with **interactive action buttons**
+- Allows users to check details of various sub-indices
+- Offers market summary insights with grouped sections
+- Enables users to set alerts for specific stock prices with **modal dialogs**
+- Displays all active alerts with **progress tracking**
+- Interactive **pagination** for top gainers and losers
+- **Smart caching** for improved performance
   
-- **Commands:**
-  - `/nepse`: Retrieve the latest NEPSE indices data.
-  - `/stonk <stock_symbol>`: Get detailed info about a specific stock listed on NEPSE.
-  - `/subidx <subindex_name>`: Get details of a specific sub-index.
-  - `/mktsum`: Provides a market summary of NEPSE's overall performance.
-  - `/setalert <stock_name> <target_price>`: Set an alert for a specific stock when it reaches a target price. The bot will send you a DM after your stock price reaches the target price.
-  - `/showalerts`: Displays all active alerts for the user.
-  - `/removealert <stock_name>`: Removes an alert for a specific stock.
-  - `/topgl`: Shows the top 10 gainers/losers
+## Commands
+
+### 📊 Market Data Commands
+- `/nepse` - Retrieve the latest NEPSE indices data with color-coded trends
+- `/stonk <stock_symbol>` - Get detailed info about a specific stock with action buttons
+  - 📊 View Chart button
+  - 🔔 Set Alert button  
+  - 🔄 Refresh button
+- `/subidx <subindex_name>` - Get details of a specific sub-index
+- `/mktsum` - Provides a market summary of NEPSE's overall performance
+- `/topgl` - Shows top 10 gainers/losers with **interactive pagination**
+  - Combined view (top 5 each)
+  - Full gainers view (top 10)
+  - Full losers view (top 10)
+  - Navigation and refresh buttons
+- `/ipo` - View all open IPOs/public offerings
+  - Shows IPOs with "Open" status
+  - Displays opening/closing dates with days remaining
+  - Shows type (IPO, Right Share, Mutual Fund, Bond)
+  - Includes price, units, and issue manager info
+
+### 📈 Chart Commands
+- `/chart <symbol> [days]` - Generate candlestick charts (1-365 days)
+- `/charthelp` - Show detailed help for chart command
+
+### 🔔 Alert Commands
+- `/setalert <stock_name> <target_price>` - Set an alert with **rich feedback**
+  - Shows current price vs target
+  - Calculates distance to target
+  - Displays alert counter (X/10)
+- `/showalerts` - Displays all active alerts with **progress indicators**
+  - Status badges (🟢 Near, 🟡 Close, 🟠 Far)
+  - Current price comparison
+  - Distance percentage
+- `/removealert <stock_name>` - Removes alerts for a specific stock
+
+### ℹ️ Help Commands
+- `/helpntb` - Complete command guide
+- `/sync` - Sync slash commands (Admin only)
+- `/cachestats` - View cache statistics (Admin only)
+- `/clearcache` - Clear cache (Admin only)
 
 ## Data Source
 
@@ -30,7 +73,8 @@ The data is sourced from [Sharesansar](https://www.sharesansar.com/) and [Mero L
 
 ## Prerequisites
 
-1. **Python 3.8 or higher**
+1. **Python 3.12** (recommended)
+  - Pinning for deployment: prefer using a `.python-version` file in the app root containing `3.12.0` (some platforms and tools now use this). For Heroku, `runtime.txt` is still supported; you can keep it for backward compatibility (it currently contains `python-3.12.0`).
 2. **Discord Account**
 
 ## Steps to Set Up the Bot
@@ -72,16 +116,12 @@ The data is sourced from [Sharesansar](https://www.sharesansar.com/) and [Mero L
 7. **Run the Bot**
    - Start the bot by running:
      ```bash
-     python tickerbot.py
+     python main.py
      ```
 
 ## Using the Bot
 
 Once the bot is running, you can type commands in your Discord server where the bot is present. Start with `!helpnepse` to see all available commands and begin interacting with the NEPSE Ticker Bot!
-
-## Demo
-
-Watch a demonstration of the bot in action: https://youtu.be/RLxecOzjsJ0
 
 ## Contributing
 
