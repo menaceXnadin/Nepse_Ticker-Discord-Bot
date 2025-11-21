@@ -1,5 +1,7 @@
 # NEPSE Ticker Discord Bot
 
+📺 Demo: https://youtu.be/RLxecOzjsJ0
+
 👋 Welcome to the NEPSE Ticker Bot! This bot is designed to provide you with real-time updates from the Nepal Stock Exchange (NEPSE) directly in your Discord server. Whether you're tracking specific stocks or monitoring overall market performance, this bot has you covered with a range of handy commands.
 
 ## Features
@@ -76,6 +78,10 @@ The data is sourced from [Sharesansar](https://www.sharesansar.com/) and [Mero L
 ## Using the Bot
 
 Once the bot is running, you can type commands in your Discord server where the bot is present. Start with `!helpnepse` to see all available commands and begin interacting with the NEPSE Ticker Bot!
+
+## Demo
+
+Watch a demonstration of the bot in action: https://youtu.be/RLxecOzjsJ0
 
 ## Contributing
 
